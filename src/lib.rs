@@ -3,13 +3,12 @@ use byteorder::{BigEndian, ByteOrder};
 use core::fmt::Display;
 use embedded_hal::blocking::i2c::{Write, WriteRead};
 
-const SHUNT_LSB: f64 = 0.0000025; //in Volts (2.5 uV)
+const SHUNT_LSB: f64 = 0.0000025; // in Volts (2.5 uV)
 const VOLTAGE_LSB: f64 = 0.00125; // in Volts (1.25 mV)
 const CURRENT_LSB: f64 = 0.001; // in Amps (1 mA)
 const POWER_LSB: f64 = 0.025; // in Watts (25 mW)
 
-#[allow(dead_code)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum SlaveAddressing {
     Gnd,
     Vs,
@@ -28,7 +27,6 @@ impl Display for SlaveAddressing {
     }
 }
 
-#[allow(dead_code)]
 pub enum Register {
     Configuration = 0x00,
     ShuntVoltage = 0x01,
@@ -42,6 +40,7 @@ pub enum Register {
     DieId = 0xFF,
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum InaAverage {
     _1 = 0x00,
     _4 = 0x01,
@@ -54,6 +53,7 @@ pub enum InaAverage {
 }
 
 #[allow(non_camel_case_types)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum InaVbusct {
     _140_us = 0x00,
     _204_us = 0x01,
@@ -66,6 +66,7 @@ pub enum InaVbusct {
 }
 
 #[allow(non_camel_case_types)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum InaVshct {
     _140_us = 0x00,
     _204_us = 0x01,
@@ -77,7 +78,6 @@ pub enum InaVshct {
     _8_244_ms = 0x07,
 }
 
-#[allow(dead_code)]
 pub enum InaMode {
     PowerDown = 0x00,
     ShuntVoltageTriggered = 0x01,
@@ -89,7 +89,6 @@ pub enum InaMode {
     ShuntAndBusContinuous = 0x07,
 }
 
-#[allow(dead_code)]
 pub enum MaskEnable {
     ShuntOverVoltage = 1 << 15,
     ShuntUnderVoltage = 1 << 14,
@@ -107,8 +106,7 @@ pub enum MaskEnable {
 pub struct Operational;
 pub struct NonOperational;
 
-#[allow(dead_code)]
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct Ina226<State = NonOperational> {
     address: Option<u8>,
     configuration: u16,
@@ -125,7 +123,6 @@ pub struct Ina226<State = NonOperational> {
 }
 
 #[derive(Debug)]
-#[allow(dead_code)]
 pub enum Error {
     CommunicationErr,
     InvalidParameter,
@@ -150,6 +147,9 @@ fn i2c_error<E>(_: E) -> Error {
     Error::CommunicationErr
 }
 
+/**
+ * Function that converts physical pin address connection to respective hexadecimal value
+ */
 pub fn convert_slave_address(a0: SlaveAddressing, a1: SlaveAddressing) -> u8 {
     match (a0, a1) {
         (SlaveAddressing::Gnd, SlaveAddressing::Gnd) => 0x40,
@@ -196,8 +196,10 @@ impl Ina226 {
     }
 }
 
-#[allow(dead_code)]
 impl<State> Ina226<State> {
+    /**
+     * Private method used to read the ina226 chosen register
+     */
     fn read_register<I2C, E>(&mut self, i2c: &mut I2C, register: Register) -> Result<[u8; 2], Error>
     where
         I2C: WriteRead<Error = E>,
@@ -210,6 +212,9 @@ impl<State> Ina226<State> {
         Ok(rx_buffer)
     }
 
+    /**
+     * Private method used to write to ina226 chosen register
+     */
     fn write_register<I2C, E>(&mut self, i2c: &mut I2C, register: Register, buf: &mut [u8; 2])
     where
         I2C: WriteRead<Error = E> + Write<Error = E>,
@@ -219,8 +224,11 @@ impl<State> Ina226<State> {
     }
 }
 
-#[allow(dead_code)]
 impl Ina226<NonOperational> {
+    /**
+     * This private method is used to verify if reading/writing to the hardware is working and also check if it is the correct IC.
+     * This method requires that the address is previously set.
+     */
     fn verify_hardware<I2C, E>(&mut self, i2c: &mut I2C) -> Result<(), Error>
     where
         I2C: WriteRead<Error = E> + Write<Error = E>,
@@ -250,6 +258,9 @@ impl Ina226<NonOperational> {
         }
     }
 
+    /**
+     * This method will initialize the driver, leaving it ready for operation. It requires a valid address
+     */
     pub fn initialize<I2C, E>(&mut self, i2c: &mut I2C) -> Result<Ina226<Operational>, Error>
     where
         I2C: WriteRead<Error = E> + Write<Error = E>,
@@ -258,7 +269,7 @@ impl Ina226<NonOperational> {
             None => Err(Error::MissingAddress),
             Some(_) => {
                 self.verify_hardware(i2c)?;
-                let config = self.read_register(i2c, Register::Configuration).unwrap();
+                let config = self.read_register(i2c, Register::Configuration)?;
                 self.configuration = BigEndian::read_u16(&config);
 
                 Ok(Ina226 {
@@ -279,11 +290,20 @@ impl Ina226<NonOperational> {
         }
     }
 
+    /**
+     * This method can be used to manually set the ina226 address. It must be used if there are other devices or ina226 containing
+     * address between 0x40 and 0x4f attached to the i2c bus
+     */
     pub fn set_ina_address(&mut self, address: u8) -> &mut Self {
         self.address = Some(address);
         self
     }
 
+    /**
+     * This method can be used to automatically search for ina226 address. ATTENTION: It must be the only device attached to the bus
+     * containing address between 0x40 and 0x4f. If found, this will automatically set the address, thus avoiding the need to use
+     * set_ina_address method
+     */
     pub fn search_ina_address<I2C, E>(&mut self, i2c: &mut I2C) -> Result<(), Error>
     where
         I2C: WriteRead<Error = E> + Write<Error = E>,
@@ -305,13 +325,18 @@ impl Ina226<NonOperational> {
         Err(Error::CommunicationErr)
     }
 
+    /**
+     * This method returns the ina226 address currently being used
+     */
     pub fn get_ina_address(&self) -> Option<u8> {
         self.address
     }
 }
 
-#[allow(dead_code)]
 impl Ina226<Operational> {
+    /**
+     * Method used to return the currently mode set on ina226 device (see ina226 datasheet <https://www.ti.com/product/INA226>)
+     */
     pub fn get_ina_mode(&self) -> Option<InaMode> {
         match self.configuration & 0x0007 {
             0x00 => Some(InaMode::PowerDown),
@@ -326,12 +351,18 @@ impl Ina226<Operational> {
         }
     }
 
+    /**
+     * Method used to set the mode of operation (see ina226 datasheet <https://www.ti.com/product/INA226>), it requires a commit()
+     */
     pub fn set_ina_mode(&mut self, value: InaMode) -> &mut Self {
         self.configuration &= 0xFFF8;
         self.configuration |= value as u16;
         self
     }
 
+    /**
+     * Method used to set the voltage conversion time (see ina226 datasheet <https://www.ti.com/product/INA226>), it requires a commit()
+     */
     pub fn set_ina_vbusct(&mut self, value: InaVbusct) -> &mut Self {
         let value = value as u16;
         self.configuration &= 0xFE3F;
@@ -339,6 +370,9 @@ impl Ina226<Operational> {
         self
     }
 
+    /**
+     * Method used to get the currently set voltage conversion time (see ina226 datasheet <https://www.ti.com/product/INA226>)
+     */
     pub fn get_ina_vbusct(&self) -> Option<InaVbusct> {
         let mut result = self.configuration >> 6;
         result &= 0x07;
@@ -355,6 +389,9 @@ impl Ina226<Operational> {
         }
     }
 
+    /**
+     * Method used to set the shunt voltage conversion time (see ina226 datasheet <https://www.ti.com/product/INA226>), it requires a commit()
+     */
     pub fn set_ina_vscht(&mut self, value: InaVshct) -> &mut Self {
         let value = value as u16;
         self.configuration &= 0xFFC7;
@@ -362,6 +399,9 @@ impl Ina226<Operational> {
         self
     }
 
+    /**
+     * Method used to get the currently set shunt voltage conversion time (see ina226 datasheet <https://www.ti.com/product/INA226>)
+     */
     pub fn get_ina_vscht(&self) -> Option<InaVshct> {
         let mut result = self.configuration >> 3;
         result &= 0x07;
@@ -378,6 +418,9 @@ impl Ina226<Operational> {
         }
     }
 
+    /**
+     * Method used to get the currently set averaging (see ina226 datasheet <https://www.ti.com/product/INA226>)
+     */
     pub fn get_ina_average(&self) -> Option<InaAverage> {
         let mut result = self.configuration >> 9;
         result &= 0x07;
@@ -394,6 +437,17 @@ impl Ina226<Operational> {
         }
     }
 
+    /**
+     * Method used to reset the chip. It generates a system reset that is the same as power-on reset. Resets all registers to default values.
+     * This method requires a commit()
+     */
+    pub fn ina_reset(&mut self) -> &mut Self {
+        self.configuration |= 1 << 15;
+        self
+    }
+    /**
+     * Method used to set the averaging (see ina226 datasheet <https://www.ti.com/product/INA226>), it requires a commit()
+     */
     pub fn set_ina_average(&mut self, value: InaAverage) -> &mut Self {
         let value = value as u16;
         self.configuration &= 0xF1FF;
@@ -401,6 +455,10 @@ impl Ina226<Operational> {
         self
     }
 
+    /**
+     * Method used to persist all configuration on the ina226 hardware registers. Any previous configuration that
+     * is not followed by a commit() is not persisted on the hardware register and thus not valid.
+     */
     pub fn commit<I2C, E>(&mut self, i2c: &mut I2C)
     where
         I2C: WriteRead<Error = E> + Write<Error = E>,
@@ -423,6 +481,9 @@ impl Ina226<Operational> {
         );
     }
 
+    /**
+     * Private method used to read the raw voltage from ina226
+     */
     fn read_raw_voltage<I2C, E>(&mut self, i2c: &mut I2C) -> u16
     where
         I2C: WriteRead<Error = E> + Write<Error = E>,
@@ -435,6 +496,9 @@ impl Ina226<Operational> {
         self.bus_voltage
     }
 
+    /**
+     * Private method used to read the raw power from ina226
+     */
     fn read_raw_power<I2C, E>(&mut self, i2c: &mut I2C) -> u16
     where
         I2C: WriteRead<Error = E> + Write<Error = E>,
@@ -447,6 +511,9 @@ impl Ina226<Operational> {
         self.power
     }
 
+    /**
+     * Private method used to read the raw current from ina226
+     */
     fn read_raw_current<I2C, E>(&mut self, i2c: &mut I2C) -> u16
     where
         I2C: WriteRead<Error = E> + Write<Error = E>,
@@ -459,6 +526,9 @@ impl Ina226<Operational> {
         self.current
     }
 
+    /**
+     * Private method used to read the raw shunt voltage from ina226
+     */
     fn read_raw_shunt_voltage<I2C, E>(&mut self, i2c: &mut I2C) -> u16
     where
         I2C: WriteRead<Error = E> + Write<Error = E>,
@@ -471,11 +541,18 @@ impl Ina226<Operational> {
         self.shunt_voltage
     }
 
+    /**
+     * Method used to set the shunt value (see ina226 datasheet <https://www.ti.com/product/INA226>), it requires a commit()
+     */
     pub fn set_ina_shunt_value(&mut self, value: u16) -> &mut Self {
         self.calibration = value;
         self
     }
 
+    /**
+     * This method is used to read the voltage, it multiplies the raw voltage by the IC resolution (in mV)
+     * returning the value in volts
+     */
     pub fn read_voltage<I2C, E>(&mut self, i2c: &mut I2C) -> f64
     where
         I2C: WriteRead<Error = E> + Write<Error = E>,
@@ -483,6 +560,10 @@ impl Ina226<Operational> {
         self.read_raw_voltage(i2c) as f64 * VOLTAGE_LSB
     }
 
+    /**
+     * This method is used to read the current, it multiplies the raw current by the IC resolution (in mA)
+     * returning the value in amps
+     */
     pub fn read_current<I2C, E>(&mut self, i2c: &mut I2C) -> f64
     where
         I2C: WriteRead<Error = E> + Write<Error = E>,
@@ -490,6 +571,10 @@ impl Ina226<Operational> {
         self.read_raw_current(i2c) as f64 * CURRENT_LSB
     }
 
+    /**
+     * This method is used to read the power, it multiplies the raw power by the IC resolution (in mW)
+     * returning the value in watts
+     */
     pub fn read_power<I2C, E>(&mut self, i2c: &mut I2C) -> f64
     where
         I2C: WriteRead<Error = E> + Write<Error = E>,
@@ -497,6 +582,10 @@ impl Ina226<Operational> {
         self.read_raw_power(i2c) as f64 * POWER_LSB
     }
 
+    /**
+     * This method is used to read the shunt voltage, it multiplies the raw shunt voltage by the IC resolution (in uV)
+     * returning the value in volts
+     */
     pub fn read_shunt_voltage<I2C, E>(&mut self, i2c: &mut I2C) -> f64
     where
         I2C: WriteRead<Error = E> + Write<Error = E>,
@@ -504,32 +593,10 @@ impl Ina226<Operational> {
         self.read_raw_shunt_voltage(i2c) as f64 * SHUNT_LSB
     }
 
-    pub fn auto_calibration(&mut self, add_correction: f64) {
-        self.calibration = match self.bus_voltage as f64 * VOLTAGE_LSB {
-            x if x >= 20.0 => 3800.0 + add_correction,
-            x if x >= 14.9 => {
-                4100.0 + add_correction - (self.bus_voltage as f64 * VOLTAGE_LSB - 15.0) * 60_f64
-            }
-            x if x >= 9.9 => {
-                5000.0 + add_correction - (self.bus_voltage as f64 * VOLTAGE_LSB - 10.0) * 180_f64
-            }
-            x if x >= 6.9 => {
-                6400.0 + add_correction - (self.bus_voltage as f64 * VOLTAGE_LSB - 7.0) * 767_f64
-            }
-            x if x >= 4.9 => 6500.0 + add_correction,
-            x if x >= 2.9 => {
-                9000.0 + add_correction - (self.bus_voltage as f64 * VOLTAGE_LSB - 3.0) * 1250_f64
-            }
-            x if x >= 1.9 => {
-                5000.0 + add_correction + (self.bus_voltage as f64 * VOLTAGE_LSB - 2.0) * 4000_f64
-            }
-            _ => 5000.0,
-        } as u16;
-
-        self.set_ina_shunt_value(self.calibration);
-    }
-
-    fn get_ina_masks<I2C, E>(&mut self, i2c: &mut I2C) -> u16
+    /**
+     * This method is used to read the masks register (see ina226 datasheet <https://www.ti.com/product/INA226>).
+     */
+    pub fn get_ina_masks<I2C, E>(&mut self, i2c: &mut I2C) -> u16
     where
         I2C: WriteRead<Error = E> + Write<Error = E>,
     {
@@ -541,30 +608,41 @@ impl Ina226<Operational> {
         self.mask_enable
     }
 
-    fn clear_ina_masks(&mut self, mask: MaskEnable) -> &mut Self {
+    /**
+     * This method is used to clear the masks register (see ina226 datasheet <https://www.ti.com/product/INA226>), it requires a commit()
+     */
+    pub fn clear_ina_masks(&mut self, mask: MaskEnable) -> &mut Self {
         let mask = mask as u16;
         self.mask_enable &= !mask;
         self
     }
 
+    /**
+     * This method is used to set masks register (see ina226 datasheet <https://www.ti.com/product/INA226>), it requires a commit()
+     */
     pub fn set_ina_masks(&mut self, mask: MaskEnable) -> &mut Self {
         let mask = mask as u16;
         self.mask_enable |= mask;
         self
     }
 
+    /**
+     * This method is used to set alert value on the alert register (see ina226 datasheet <https://www.ti.com/product/INA226>), it requires a commit()
+     */
     pub fn set_ina_alert(&mut self, value: u16) -> &mut Self {
         self.alert_limit = value;
         self
     }
-
+    /**
+     * This method clears the alert register, it requires commit()
+     */
     pub fn clear_ina_alert(&mut self) -> &mut Self {
         self.alert_limit = 0;
         self
     }
 
     /**
-     * This function reads the Alert register and returns the result
+     * This method reads the Alert register and returns the result
      */
     pub fn get_ina_alert<I2C, E>(&mut self, i2c: &mut I2C) -> u16
     where
@@ -582,6 +660,7 @@ impl Ina226<Operational> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pretty_assertions::*;
 
     #[test]
     fn it_works() {
