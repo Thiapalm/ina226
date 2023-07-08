@@ -1,0 +1,14 @@
+[package]
+name = "ina226"
+version = "0.1.0"
+edition = "2021"
+author = ["Thiago Palmieri <project@adastra.aleeas.com>"]
+keywords = ["analog", "driver", "i2c", "embedded-hal-driver"]
+categories = ["embedded", "hardware-support", "no-std"]
+license = "MIT OR Apache-2.0"
+description = "Rust Driver for device INA226 High-Side or Low-Side Measurement, Bi-Direcional Current and Power Monitor"
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+embedded-hal = "0.2.7"
+byteorder = { version = "1.4.3", default-features = false }
