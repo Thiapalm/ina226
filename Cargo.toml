@@ -1,5 +1,5 @@
 [package]
-name = "ina226"
+name = "ina226-tp"
 version = "0.1.0"
 edition = "2021"
 author = ["Thiago Palmieri <project@adastra.aleeas.com>"]
