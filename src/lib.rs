@@ -4,6 +4,8 @@ use byteorder::{BigEndian, ByteOrder};
 use core::fmt::Display;
 use embedded_hal::blocking::i2c::{Write, WriteRead};
 
+const INTERNAL_SCALING: f64 = 0.00512;
+
 const SHUNT_LSB: f64 = 0.0000025; // in Volts (2.5 uV)
 const VOLTAGE_LSB: f64 = 0.00125; // in Volts (1.25 mV)
 const CURRENT_LSB: f64 = 0.001; // in Amps (1 mA)
@@ -556,9 +558,22 @@ impl Ina226<Operational> {
     }
 
     /**
-     * Method used to set the shunt value (see ina226 datasheet <https://www.ti.com/product/INA226>), it requires a commit()
+     * This method uses provided Rshunt and Maximum expected current to set the calibration register
+     * Please, See the datasheet <https://www.ti.com/product/INA226>, chapter 7.5 for further information.
+     * This method requires a commit()
      */
-    pub fn set_ina_shunt_value(&mut self, value: u16) -> &mut Self {
+    pub fn set_ina_calibration(&mut self, rshunt: f64, expect_max_curr: f64) -> &mut Self {
+        let cur_lsb = expect_max_curr / (1 << 15) as f64;
+        let cal = (INTERNAL_SCALING / (cur_lsb * rshunt)) as u16;
+
+        self.calibration = cal;
+        self
+    }
+
+    /**
+     * Method used to manually set the calibration value (see ina226 datasheet <https://www.ti.com/product/INA226>), it requires a commit()
+     */
+    pub fn set_ina_calibration_value(&mut self, value: u16) -> &mut Self {
         self.calibration = value;
         self
     }
@@ -888,8 +903,6 @@ mod tests {
         assert_eq!(result.die_id, 0x2260);
     }
 
-    //TODO! Test search_ina_address
-
     #[test]
     fn test_get_ina_address() {
         let mut ina = Ina226::default();
@@ -1097,9 +1110,9 @@ mod tests {
     }
 
     #[test]
-    fn test_set_ina_shunt_value() {
+    fn test_set_ina_calibration_value() {
         let mut result = initialize_ina();
-        result.set_ina_shunt_value(4000);
+        result.set_ina_calibration_value(4000);
         assert_eq!(4000, result.calibration);
     }
 
@@ -1269,5 +1282,15 @@ mod tests {
         let mut i2c = I2cMock::new(&expectations);
         let alert = result.get_ina_alert(&mut i2c);
         assert_eq!(0x1010 as u16, alert);
+    }
+
+    #[test]
+    fn test_set_ina_calibration() {
+        let mut result = initialize_ina();
+
+        let myrshut = 0.002; //Ohms
+        let max_curr = 15.0; //Amps
+        result.set_ina_calibration(myrshut, max_curr);
+        assert_eq!(5592, result.calibration);
     }
 }
