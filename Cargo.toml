@@ -16,3 +16,5 @@ byteorder = { version = "1.4.3", default-features = false }
 
 [dev-dependencies]
 pretty_assertions = "1"
+embedded-hal-mock = "0.9.0"
+float-cmp = "0.9.0"
