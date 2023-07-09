@@ -1,3 +1,4 @@
+#![no_std]
 // Imports
 use byteorder::{BigEndian, ByteOrder};
 use core::fmt::Display;
@@ -679,6 +680,7 @@ impl Ina226<Operational> {
 
 #[cfg(test)]
 mod tests {
+    extern crate std;
     use super::*;
     use pretty_assertions::assert_eq;
     extern crate embedded_hal_mock;
@@ -687,6 +689,20 @@ mod tests {
         MockError,
     };
     use float_cmp::approx_eq;
+
+    use tests::std::vec::Vec;
+
+    fn vector1(a: u8) -> Vec<u8> {
+        let mut v = Vec::new();
+        v.push(a);
+        v
+    }
+    fn vector2(a: u8, b: u8) -> Vec<u8> {
+        let mut v = Vec::new();
+        v.push(a);
+        v.push(b);
+        v
+    }
 
     #[test]
     fn test_convert_slave_address() {
@@ -737,8 +753,10 @@ mod tests {
     fn test_verify_hardware_error_on_die() {
         let mut ina = Ina226::default();
         ina.set_ina_address(0x40);
-        let expectations = [I2cTransaction::write_read(0x40, vec![0xFF], vec![3, 4])
-            .with_error(MockError::Io(std::io::ErrorKind::Other))];
+        let expectations = [
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(3, 4))
+                .with_error(MockError::Io(std::io::ErrorKind::Other)),
+        ];
         let mut i2c = I2cMock::new(&expectations);
         let result = ina.verify_hardware(&mut i2c);
         assert_eq!(Error::CommunicationErr, result.unwrap_err());
@@ -749,8 +767,8 @@ mod tests {
         let mut ina = Ina226::default();
         ina.set_ina_address(0x40);
         let expectations = [
-            I2cTransaction::write_read(0x40, vec![0xFF], vec![3, 4]),
-            I2cTransaction::write_read(0x40, vec![0xFE], vec![3, 4]),
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(3, 4)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(3, 4)),
         ];
         let mut i2c = I2cMock::new(&expectations);
         let result = ina.verify_hardware(&mut i2c);
@@ -762,8 +780,8 @@ mod tests {
         let mut ina = Ina226::default();
         ina.set_ina_address(0x40);
         let expectations = [
-            I2cTransaction::write_read(0x40, vec![0xFF], vec![3, 4]),
-            I2cTransaction::write_read(0x40, vec![0xFE], vec![3, 4])
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(3, 4)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(3, 4))
                 .with_error(MockError::Io(std::io::ErrorKind::Other)),
         ];
         let mut i2c = I2cMock::new(&expectations);
@@ -776,8 +794,8 @@ mod tests {
         let mut ina = Ina226::default();
         ina.set_ina_address(0x40);
         let expectations = [
-            I2cTransaction::write_read(0x40, vec![0xFF], vec![0x22 as u8, 0x60 as u8]),
-            I2cTransaction::write_read(0x40, vec![0xFE], vec![3, 4]),
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(3, 4)),
         ];
         let mut i2c = I2cMock::new(&expectations);
         let result = ina.verify_hardware(&mut i2c);
@@ -789,8 +807,8 @@ mod tests {
         let mut ina = Ina226::default();
         ina.set_ina_address(0x40);
         let expectations = [
-            I2cTransaction::write_read(0x40, vec![0xFF], vec![0x22 as u8, 0x60 as u8]),
-            I2cTransaction::write_read(0x40, vec![0xFE], vec![0x54 as u8, 0x49 as u8]),
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
         ];
         let mut i2c = I2cMock::new(&expectations);
         let result = ina.verify_hardware(&mut i2c);
@@ -821,8 +839,10 @@ mod tests {
     fn test_initialize_fail_hardware() {
         let mut ina = Ina226::default();
         ina.set_ina_address(0x40 as u8);
-        let expectations = [I2cTransaction::write_read(0x40, vec![0xFF], vec![3, 4])
-            .with_error(MockError::Io(std::io::ErrorKind::Other))];
+        let expectations = [
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(3, 4))
+                .with_error(MockError::Io(std::io::ErrorKind::Other)),
+        ];
         let mut i2c = I2cMock::new(&expectations);
         let result = ina.initialize(&mut i2c);
         assert_eq!(Error::CommunicationErr, result.unwrap_err());
@@ -833,9 +853,9 @@ mod tests {
         let mut ina = Ina226::default();
         ina.set_ina_address(0x40 as u8);
         let expectations = [
-            I2cTransaction::write_read(0x40, vec![0xFF], vec![0x22 as u8, 0x60 as u8]),
-            I2cTransaction::write_read(0x40, vec![0xFE], vec![0x54 as u8, 0x49 as u8]),
-            I2cTransaction::write_read(0x40, vec![0], vec![3, 4])
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4))
                 .with_error(MockError::Io(std::io::ErrorKind::Other)),
         ];
         let mut i2c = I2cMock::new(&expectations);
@@ -848,9 +868,9 @@ mod tests {
         let mut ina = Ina226::default();
         ina.set_ina_address(0x40 as u8);
         let expectations = [
-            I2cTransaction::write_read(0x40, vec![0xFF], vec![0x22 as u8, 0x60 as u8]),
-            I2cTransaction::write_read(0x40, vec![0xFE], vec![0x54 as u8, 0x49 as u8]),
-            I2cTransaction::write_read(0x40, vec![0], vec![3, 4]),
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
         ];
         let mut i2c = I2cMock::new(&expectations);
         let result = ina.initialize(&mut i2c).unwrap();
@@ -884,9 +904,9 @@ mod tests {
         let mut ina = Ina226::default();
         ina.set_ina_address(0x40 as u8);
         let expectations = [
-            I2cTransaction::write_read(0x40, vec![0xFF], vec![0x22 as u8, 0x60 as u8]),
-            I2cTransaction::write_read(0x40, vec![0xFE], vec![0x54 as u8, 0x49 as u8]),
-            I2cTransaction::write_read(0x40, vec![0], vec![3, 4]),
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
         ];
         let mut i2c = I2cMock::new(&expectations);
         ina.initialize(&mut i2c).unwrap()
@@ -964,11 +984,12 @@ mod tests {
     fn test_read_raw_voltage_fail() {
         let mut result = initialize_ina();
 
-        let expectations =
-            [
-                I2cTransaction::write_read(0x40, vec![0x02], vec![0x22 as u8, 0x60 as u8])
-                    .with_error(MockError::Io(std::io::ErrorKind::Other)),
-            ];
+        let expectations = [I2cTransaction::write_read(
+            0x40,
+            vector1(0x02 as u8),
+            vector2(0x22 as u8, 0x60 as u8),
+        )
+        .with_error(MockError::Io(std::io::ErrorKind::Other))];
         let mut i2c = I2cMock::new(&expectations);
         let voltage = result.read_raw_voltage(&mut i2c);
         assert_eq!(0 as u16, voltage);
@@ -980,8 +1001,8 @@ mod tests {
 
         let expectations = [I2cTransaction::write_read(
             0x40,
-            vec![0x02],
-            vec![0x00 as u8, 0x60 as u8],
+            vector1(0x02 as u8),
+            vector2(0x00 as u8, 0x60 as u8),
         )];
         let mut i2c = I2cMock::new(&expectations);
         let voltage = result.read_raw_voltage(&mut i2c);
@@ -992,11 +1013,12 @@ mod tests {
     fn test_read_raw_power_fail() {
         let mut result = initialize_ina();
 
-        let expectations =
-            [
-                I2cTransaction::write_read(0x40, vec![0x03], vec![0x22 as u8, 0x60 as u8])
-                    .with_error(MockError::Io(std::io::ErrorKind::Other)),
-            ];
+        let expectations = [I2cTransaction::write_read(
+            0x40,
+            vector1(0x03 as u8),
+            vector2(0x22 as u8, 0x60 as u8),
+        )
+        .with_error(MockError::Io(std::io::ErrorKind::Other))];
         let mut i2c = I2cMock::new(&expectations);
         let power = result.read_raw_power(&mut i2c);
         assert_eq!(0 as u16, power);
@@ -1008,8 +1030,8 @@ mod tests {
 
         let expectations = [I2cTransaction::write_read(
             0x40,
-            vec![0x03],
-            vec![0x00 as u8, 0x60 as u8],
+            vector1(0x03 as u8),
+            vector2(0x00 as u8, 0x60 as u8),
         )];
         let mut i2c = I2cMock::new(&expectations);
         let power = result.read_raw_power(&mut i2c);
@@ -1020,11 +1042,12 @@ mod tests {
     fn test_read_raw_current_fail() {
         let mut result = initialize_ina();
 
-        let expectations =
-            [
-                I2cTransaction::write_read(0x40, vec![0x04], vec![0x22 as u8, 0x60 as u8])
-                    .with_error(MockError::Io(std::io::ErrorKind::Other)),
-            ];
+        let expectations = [I2cTransaction::write_read(
+            0x40,
+            vector1(0x04 as u8),
+            vector2(0x22 as u8, 0x60 as u8),
+        )
+        .with_error(MockError::Io(std::io::ErrorKind::Other))];
         let mut i2c = I2cMock::new(&expectations);
         let current = result.read_raw_current(&mut i2c);
         assert_eq!(0 as u16, current);
@@ -1036,8 +1059,8 @@ mod tests {
 
         let expectations = [I2cTransaction::write_read(
             0x40,
-            vec![0x04],
-            vec![0x00 as u8, 0x60 as u8],
+            vector1(0x04 as u8),
+            vector2(0x00 as u8, 0x60 as u8),
         )];
         let mut i2c = I2cMock::new(&expectations);
         let current = result.read_raw_current(&mut i2c);
@@ -1048,11 +1071,12 @@ mod tests {
     fn test_read_raw_shunt_voltage_fail() {
         let mut result = initialize_ina();
 
-        let expectations =
-            [
-                I2cTransaction::write_read(0x40, vec![0x01], vec![0x22 as u8, 0x60 as u8])
-                    .with_error(MockError::Io(std::io::ErrorKind::Other)),
-            ];
+        let expectations = [I2cTransaction::write_read(
+            0x40,
+            vector1(0x01 as u8),
+            vector2(0x22 as u8, 0x60 as u8),
+        )
+        .with_error(MockError::Io(std::io::ErrorKind::Other))];
         let mut i2c = I2cMock::new(&expectations);
         let shunt_voltage = result.read_raw_shunt_voltage(&mut i2c);
         assert_eq!(0 as u16, shunt_voltage);
@@ -1064,8 +1088,8 @@ mod tests {
 
         let expectations = [I2cTransaction::write_read(
             0x40,
-            vec![0x01],
-            vec![0x00 as u8, 0x60 as u8],
+            vector1(0x01 as u8),
+            vector2(0x00 as u8, 0x60 as u8),
         )];
         let mut i2c = I2cMock::new(&expectations);
         let shunt_voltage = result.read_raw_shunt_voltage(&mut i2c);
@@ -1085,8 +1109,8 @@ mod tests {
 
         let expectations = [I2cTransaction::write_read(
             0x40,
-            vec![0x02],
-            vec![0x00 as u8, 0x60 as u8],
+            vector1(0x02 as u8),
+            vector2(0x00 as u8, 0x60 as u8),
         )];
         let mut i2c = I2cMock::new(&expectations);
         let voltage = result.read_voltage(&mut i2c);
@@ -1099,8 +1123,8 @@ mod tests {
 
         let expectations = [I2cTransaction::write_read(
             0x40,
-            vec![0x04],
-            vec![0x00 as u8, 0x60 as u8],
+            vector1(0x04 as u8),
+            vector2(0x00 as u8, 0x60 as u8),
         )];
         let mut i2c = I2cMock::new(&expectations);
         let current = result.read_current(&mut i2c);
@@ -1113,8 +1137,8 @@ mod tests {
 
         let expectations = [I2cTransaction::write_read(
             0x40,
-            vec![0x03],
-            vec![0x00 as u8, 0x60 as u8],
+            vector1(0x03 as u8),
+            vector2(0x00 as u8, 0x60 as u8),
         )];
         let mut i2c = I2cMock::new(&expectations);
         let power = result.read_power(&mut i2c);
@@ -1127,8 +1151,8 @@ mod tests {
 
         let expectations = [I2cTransaction::write_read(
             0x40,
-            vec![0x01],
-            vec![0x00 as u8, 0x60 as u8],
+            vector1(0x01 as u8),
+            vector2(0x00 as u8, 0x60 as u8),
         )];
         let mut i2c = I2cMock::new(&expectations);
         let shunt_voltage = result.read_shunt_voltage(&mut i2c);
@@ -1139,11 +1163,12 @@ mod tests {
     fn test_get_ina_masks_fail() {
         let mut result = initialize_ina();
 
-        let expectations =
-            [
-                I2cTransaction::write_read(0x40, vec![0x06], vec![0x22 as u8, 0x60 as u8])
-                    .with_error(MockError::Io(std::io::ErrorKind::Other)),
-            ];
+        let expectations = [I2cTransaction::write_read(
+            0x40,
+            vector1(0x06 as u8),
+            vector2(0x22 as u8, 0x60 as u8),
+        )
+        .with_error(MockError::Io(std::io::ErrorKind::Other))];
         let mut i2c = I2cMock::new(&expectations);
         let masks = result.get_ina_masks(&mut i2c);
         assert_eq!(0 as u16, masks);
@@ -1155,8 +1180,8 @@ mod tests {
 
         let expectations = [I2cTransaction::write_read(
             0x40,
-            vec![0x06],
-            vec![0x22 as u8, 0x60 as u8],
+            vector1(0x06 as u8),
+            vector2(0x22 as u8, 0x60 as u8),
         )];
         let mut i2c = I2cMock::new(&expectations);
         let masks = result.get_ina_masks(&mut i2c);
@@ -1221,11 +1246,12 @@ mod tests {
     fn test_get_ina_alert_fail() {
         let mut result = initialize_ina();
 
-        let expectations =
-            [
-                I2cTransaction::write_read(0x40, vec![0x07], vec![0x22 as u8, 0x60 as u8])
-                    .with_error(MockError::Io(std::io::ErrorKind::Other)),
-            ];
+        let expectations = [I2cTransaction::write_read(
+            0x40,
+            vector1(0x07 as u8),
+            vector2(0x22 as u8, 0x60 as u8),
+        )
+        .with_error(MockError::Io(std::io::ErrorKind::Other))];
         let mut i2c = I2cMock::new(&expectations);
         let alert = result.get_ina_alert(&mut i2c);
         assert_eq!(0 as u16, alert);
@@ -1237,8 +1263,8 @@ mod tests {
 
         let expectations = [I2cTransaction::write_read(
             0x40,
-            vec![0x07],
-            vec![0x10 as u8, 0x10 as u8],
+            vector1(0x07 as u8),
+            vector2(0x10 as u8, 0x10 as u8),
         )];
         let mut i2c = I2cMock::new(&expectations);
         let alert = result.get_ina_alert(&mut i2c);
