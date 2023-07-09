@@ -4,6 +4,40 @@
 
 # [ina226 Datasheet](https://www.ti.com/product/INA226)
 
+# Description
+
+This crate was made for and tested on INA226 from Texas Instruments, it is based on I2C from embedded-hal crate.
+The implementation of this crate is based on #![no_std] but with some minor adjustments it can be used on std environments.
+
+This driver allows you to:
+- Manually configure INA226 address
+- Automatically detect INA226 address
+- Fully configure the configuration register
+- Calibrate the device
+- Manually configure the Mask/Enable register
+- Manually configure the Alert register
+- Read Voltage, shunt voltage, current and power
+- Test device connection for errors
+- Reset the device to factory specs
+
+This driver contains two modes, non operational and operational:
+Non Operational:
+ - When creating the device it starts on this mode
+ - you can manualy set the address or auto detect it
+ - when initializing the device it will test the connection and then move to Operational mode.
+
+ Operational:
+ - Set configuration, mask/enable and alert registers
+ - Set the calibration register based on Rshunt and MaxAmp (set_ina_calibration)
+ - Set the calibration register manually (set_ina_calibration_value)
+ - Read configured values
+ - Reset the device to factory specs
+ - Read voltage, shunt voltage, current and power
+
+ Please note that after any configuration change, a commit operation must be performed so the information can be sent to the IC.
+
+ If the device is not calibrated, it assumes a shunt resistor value of 2 mOhms and maximum current of 10 Amps
+
 # Example
 
 To use the driver, you must have a concrete implementation of the
@@ -51,7 +85,7 @@ let mut ina_device = ina226::Ina226::new();
         .set_ina_vscht(InaVshct::_1_1_ms)
         .commit(&mut i2c);
 
-    ina_device.set_ina_shunt_value(6000).commit(&mut i2c);
+    ina_device.set_ina_calibration_value(6000).commit(&mut i2c);
 
     rprintln!("Voltage: {:.2} V", ina_device.read_voltage(&mut i2c));
     rprintln!("Current: {:.3} A", ina_device.read_current(&mut i2c));
