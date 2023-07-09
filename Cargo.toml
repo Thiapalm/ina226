@@ -2,7 +2,7 @@
 name = "ina226-tp"
 version = "0.1.0"
 edition = "2021"
-author = ["Thiago Palmieri <project@adastra.aleeas.com>"]
+author = ["Thiago Palmieri <palmieri@adastra.aleeas.com>"]
 keywords = ["analog", "driver", "i2c", "embedded-hal-driver"]
 categories = ["embedded", "hardware-support", "no-std"]
 license = "MIT OR Apache-2.0"
