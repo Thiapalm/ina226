@@ -8,6 +8,8 @@ categories = ["embedded", "hardware-support", "no-std"]
 license = "MIT OR Apache-2.0"
 description = "Rust Driver for device INA226 High-Side or Low-Side Measurement, Bi-Direcional Current and Power Monitor"
 readme = "README.md"
+repository = "https://github.com/Thiapalm/ina226"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
