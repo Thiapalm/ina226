@@ -36,6 +36,11 @@
 //! Please note that after any configuration change, a commit operation must be performed so the information can be sent to the IC.
 //!
 //! If the device is not calibrated, it assumes a shunt resistor value of 2 mOhms and maximum current of 10 Amps
+//!
+//! Note on I2C usage: If you need to search for INA Address, then you must use the BUS version of I2C from Embedded hal
+//! because you will need to pass an I2C instance for the NEW and another for the INITIALIZE Methods. If you don't need to
+//! search for INA Address, then pass NONE to the NEW method and then the I2C instance for INITIALIZE method.
+//!
 
 // Imports
 use byteorder::{BigEndian, ByteOrder};
@@ -729,10 +734,7 @@ mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
     extern crate embedded_hal_mock;
-    use embedded_hal_mock::{
-        i2c::{Mock as I2cMock, Transaction as I2cTransaction},
-        MockError,
-    };
+    use embedded_hal_mock::eh1::i2c::{Mock as I2cMock, Transaction as I2cTransaction};
     use float_cmp::approx_eq;
 
     use tests::std::vec::Vec;
@@ -773,141 +775,169 @@ mod tests {
     fn test_verify_hardware_missing_address() {
         let expectations = [];
         let mut i2c = I2cMock::new(&expectations);
-        let mut ina = Ina226::new(i2c);
+        let mut ina = Ina226::new(Some(i2c.clone()));
         let result = ina.verify_hardware();
         assert_eq!(Error::MissingAddress, result.unwrap_err());
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_verify_hardware_error_on_die() {
-        ina.set_ina_address(0x40);
         let expectations = [
             I2cTransaction::write_read(0x40, vector1(0xFF), vector2(3, 4))
-                .with_error(MockError::Io(std::io::ErrorKind::Other)),
+                .with_error(embedded_hal::i2c::ErrorKind::Other),
         ];
         let mut i2c = I2cMock::new(&expectations);
-        let mut ina = Ina226::new(i2c);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40);
         let result = ina.verify_hardware();
         assert_eq!(Error::CommunicationErr, result.unwrap_err());
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_verify_hardware_error_on_die_id() {
-        ina.set_ina_address(0x40);
         let expectations = [
             I2cTransaction::write_read(0x40, vector1(0xFF), vector2(3, 4)),
             I2cTransaction::write_read(0x40, vector1(0xFE), vector2(3, 4)),
         ];
         let mut i2c = I2cMock::new(&expectations);
-        let mut ina = Ina226::new(i2c);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40);
         let result = ina.verify_hardware();
         assert_eq!(Error::InvalidDie, result.unwrap_err());
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_verify_hardware_error_on_manufacturer() {
-        ina.set_ina_address(0x40);
         let expectations = [
             I2cTransaction::write_read(0x40, vector1(0xFF), vector2(3, 4)),
             I2cTransaction::write_read(0x40, vector1(0xFE), vector2(3, 4))
-                .with_error(MockError::Io(std::io::ErrorKind::Other)),
+                .with_error(embedded_hal::i2c::ErrorKind::Other),
         ];
         let mut i2c = I2cMock::new(&expectations);
-        let mut ina = Ina226::new(i2c);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40);
         let result = ina.verify_hardware();
         assert_eq!(Error::CommunicationErr, result.unwrap_err());
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_verify_hardware_error_on_manufacturer_id() {
-        ina.set_ina_address(0x40);
         let expectations = [
             I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
             I2cTransaction::write_read(0x40, vector1(0xFE), vector2(3, 4)),
         ];
         let mut i2c = I2cMock::new(&expectations);
-        let mut ina = Ina226::new(i2c);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40);
         let result = ina.verify_hardware();
         assert_eq!(Error::InvalidManufacturer, result.unwrap_err());
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_verify_hardware_ok() {
-        ina.set_ina_address(0x40);
         let expectations = [
             I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
             I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
         ];
         let mut i2c = I2cMock::new(&expectations);
-        let mut ina = Ina226::new(i2c);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40);
         let result = ina.verify_hardware();
         assert_eq!((), result.unwrap());
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_set_ina_address() {
-        let expectations = [
-            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
-            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
-        ];
+        let expectations = [];
         let mut i2c = I2cMock::new(&expectations);
-        let mut ina = Ina226::new(i2c);
+        let mut ina = Ina226::new(Some(i2c.clone()));
         ina.set_ina_address(0x40);
         assert_eq!(Some(0x40 as u8), ina.address);
         ina.set_ina_address(0x88);
         assert_eq!(Some(0x88 as u8), ina.address);
 
         assert_eq!(Some(0x11 as u8), ina.set_ina_address(0x11).address);
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_initialize_missing_address() {
         let expectations = [];
         let mut i2c = I2cMock::new(&expectations);
-        let mut ina = Ina226::new(i2c);
-        let result = ina.initialize(i2c);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        let result = ina.initialize(i2c.clone());
         assert_eq!(Error::MissingAddress, result.unwrap_err());
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_initialize_fail_hardware() {
-        ina.set_ina_address(0x40 as u8);
         let expectations = [
             I2cTransaction::write_read(0x40, vector1(0xFF), vector2(3, 4))
-                .with_error(MockError::Io(std::io::ErrorKind::Other)),
+                .with_error(embedded_hal::i2c::ErrorKind::Other),
         ];
         let mut i2c = I2cMock::new(&expectations);
-        let mut ina = Ina226::new(i2c);
-        let result = ina.initialize(i2c);
+
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let result = ina.initialize(i2c.clone());
         assert_eq!(Error::CommunicationErr, result.unwrap_err());
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_initialize_fail_reading_configuration() {
-        ina.set_ina_address(0x40 as u8);
         let expectations = [
             I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
             I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
             I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4))
-                .with_error(MockError::Io(std::io::ErrorKind::Other)),
+                .with_error(embedded_hal::i2c::ErrorKind::Other),
         ];
         let mut i2c = I2cMock::new(&expectations);
-        let mut ina = Ina226::new(i2c);
-        let result = ina.initialize(i2c);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let result = ina.initialize(i2c.clone());
         assert_eq!(Error::CommunicationErr, result.unwrap_err());
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_initialize_ok() {
-        ina.set_ina_address(0x40 as u8);
         let expectations = [
             I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
             I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
             I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
         ];
         let mut i2c = I2cMock::new(&expectations);
-        let mut ina = Ina226::new(i2c);
-        let result = ina.initialize(i2c).unwrap();
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let result = ina.initialize(i2c.clone()).unwrap();
 
         assert_eq!(result.address, Some(0x40));
         assert_eq!(result.configuration, 0x0304);
@@ -920,309 +950,492 @@ mod tests {
         assert_eq!(result.alert_limit, 0);
         assert_eq!(result.manufacturer, 0x5449);
         assert_eq!(result.die_id, 0x2260);
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
-    fn test_get_ina_address() {
-        let mut ina = Ina226::new(i2c);
-        assert_eq!(None, ina.get_ina_address());
-
-        ina.set_ina_address(0x40 as u8);
-        assert_eq!(Some(0x40 as u8), ina.get_ina_address());
-    }
-
-    //support function to initialize ina device, must be used on unit tests only
-    fn initialize_ina<I2C>() -> Ina226<I2C, Operational> {
-        ina.set_ina_address(0x40 as u8);
+    fn test_set_ina_mode() {
         let expectations = [
             I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
             I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
             I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
         ];
         let mut i2c = I2cMock::new(&expectations);
-        let mut ina = Ina226::new(i2c);
-        ina.initialize(i2c).unwrap()
-    }
-
-    #[test]
-    fn test_set_ina_mode() {
-        let mut result = initialize_ina::<I2C>();
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let mut result = ina.initialize(i2c.clone()).unwrap();
         result.set_ina_mode(InaMode::BusVoltageContinuous);
 
         assert_eq!(Some(InaMode::BusVoltageContinuous), result.get_ina_mode());
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_get_ina_mode() {
-        let result = initialize_ina::<I2C>();
+        let expectations = [
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
+        ];
+        let mut i2c = I2cMock::new(&expectations);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let result = ina.initialize(i2c.clone()).unwrap();
 
         assert_eq!(Some(InaMode::PowerDown2), result.get_ina_mode());
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_set_ina_vbusct() {
-        let mut result = initialize_ina::<I2C>();
+        let expectations = [
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
+        ];
+        let mut i2c = I2cMock::new(&expectations);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let mut result = ina.initialize(i2c.clone()).unwrap();
         result.set_ina_vbusct(InaVbusct::_204_us);
 
         assert_eq!(Some(InaVbusct::_204_us), result.get_ina_vbusct());
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_get_ina_vbusct() {
-        let result = initialize_ina::<I2C>();
+        let expectations = [
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
+        ];
+        let mut i2c = I2cMock::new(&expectations);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let result = ina.initialize(i2c.clone()).unwrap();
 
         assert_eq!(Some(InaVbusct::_1_1_ms), result.get_ina_vbusct());
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_set_ina_vscht() {
-        let mut result = initialize_ina::<I2C>();
+        let expectations = [
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
+        ];
+        let mut i2c = I2cMock::new(&expectations);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let mut result = ina.initialize(i2c.clone()).unwrap();
         result.set_ina_vscht(InaVshct::_204_us);
 
         assert_eq!(Some(InaVshct::_204_us), result.get_ina_vscht());
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_get_ina_vscht() {
-        let result = initialize_ina::<I2C>();
+        let expectations = [
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
+        ];
+        let mut i2c = I2cMock::new(&expectations);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let result = ina.initialize(i2c.clone()).unwrap();
 
         assert_eq!(Some(InaVshct::_140_us), result.get_ina_vscht());
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_set_ina_average() {
-        let mut result = initialize_ina::<I2C>();
+        let expectations = [
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
+        ];
+        let mut i2c = I2cMock::new(&expectations);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let mut result = ina.initialize(i2c.clone()).unwrap();
         result.set_ina_average(InaAverage::_1024);
 
         assert_eq!(Some(InaAverage::_1024), result.get_ina_average());
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_get_ina_average() {
-        let result = initialize_ina::<I2C>();
+        let expectations = [
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
+        ];
+        let mut i2c = I2cMock::new(&expectations);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let result = ina.initialize(i2c.clone()).unwrap();
 
         assert_eq!(Some(InaAverage::_4), result.get_ina_average());
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_ina_reset() {
-        let mut result = initialize_ina::<I2C>();
+        let expectations = [
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
+        ];
+        let mut i2c = I2cMock::new(&expectations);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let mut result = ina.initialize(i2c.clone()).unwrap();
         result.ina_reset();
 
         assert_eq!(0x01 as u16, result.configuration >> 15);
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_read_raw_voltage_fail() {
-        let mut result = initialize_ina::<I2C>();
-
-        let expectations = [I2cTransaction::write_read(
-            0x40,
-            vector1(0x02 as u8),
-            vector2(0x22 as u8, 0x60 as u8),
-        )
-        .with_error(MockError::Io(std::io::ErrorKind::Other))];
+        let expectations = [
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
+            I2cTransaction::write_read(0x40, vector1(0x02 as u8), vector2(0x22 as u8, 0x60 as u8))
+                .with_error(embedded_hal::i2c::ErrorKind::Other),
+        ];
         let mut i2c = I2cMock::new(&expectations);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let mut result = ina.initialize(i2c.clone()).unwrap();
+
         let voltage = result.read_raw_voltage();
         assert_eq!(0 as u16, voltage);
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_read_raw_voltage_ok() {
-        let mut result = initialize_ina::<I2C>();
-
-        let expectations = [I2cTransaction::write_read(
-            0x40,
-            vector1(0x02 as u8),
-            vector2(0x00 as u8, 0x60 as u8),
-        )];
+        let expectations = [
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
+            I2cTransaction::write_read(0x40, vector1(0x02 as u8), vector2(0x00 as u8, 0x60 as u8)),
+        ];
         let mut i2c = I2cMock::new(&expectations);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let mut result = ina.initialize(i2c.clone()).unwrap();
+
         let voltage = result.read_raw_voltage();
         assert_eq!(0x0060 as u16, voltage);
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_read_raw_power_fail() {
-        let mut result = initialize_ina::<I2C>();
-
-        let expectations = [I2cTransaction::write_read(
-            0x40,
-            vector1(0x03 as u8),
-            vector2(0x22 as u8, 0x60 as u8),
-        )
-        .with_error(MockError::Io(std::io::ErrorKind::Other))];
+        let expectations = [
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
+            I2cTransaction::write_read(0x40, vector1(0x03 as u8), vector2(0x22 as u8, 0x60 as u8))
+                .with_error(embedded_hal::i2c::ErrorKind::Other),
+        ];
         let mut i2c = I2cMock::new(&expectations);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let mut result = ina.initialize(i2c.clone()).unwrap();
+
         let power = result.read_raw_power();
         assert_eq!(0 as u16, power);
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_read_raw_power_ok() {
-        let mut result = initialize_ina::<I2C>();
-
-        let expectations = [I2cTransaction::write_read(
-            0x40,
-            vector1(0x03 as u8),
-            vector2(0x00 as u8, 0x60 as u8),
-        )];
+        let expectations = [
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
+            I2cTransaction::write_read(0x40, vector1(0x03 as u8), vector2(0x00 as u8, 0x60 as u8)),
+        ];
         let mut i2c = I2cMock::new(&expectations);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let mut result = ina.initialize(i2c.clone()).unwrap();
+
         let power = result.read_raw_power();
         assert_eq!(0x0060 as u16, power);
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_read_raw_current_fail() {
-        let mut result = initialize_ina::<I2C>();
-
-        let expectations = [I2cTransaction::write_read(
-            0x40,
-            vector1(0x04 as u8),
-            vector2(0x22 as u8, 0x60 as u8),
-        )
-        .with_error(MockError::Io(std::io::ErrorKind::Other))];
+        let expectations = [
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
+            I2cTransaction::write_read(0x40, vector1(0x04 as u8), vector2(0x22 as u8, 0x60 as u8))
+                .with_error(embedded_hal::i2c::ErrorKind::Other),
+        ];
         let mut i2c = I2cMock::new(&expectations);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let mut result = ina.initialize(i2c.clone()).unwrap();
+
         let current = result.read_raw_current();
         assert_eq!(0 as u16, current);
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_read_raw_current_ok() {
-        let mut result = initialize_ina::<I2C>();
-
-        let expectations = [I2cTransaction::write_read(
-            0x40,
-            vector1(0x04 as u8),
-            vector2(0x00 as u8, 0x60 as u8),
-        )];
+        let expectations = [
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
+            I2cTransaction::write_read(0x40, vector1(0x04 as u8), vector2(0x00 as u8, 0x60 as u8)),
+        ];
         let mut i2c = I2cMock::new(&expectations);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let mut result = ina.initialize(i2c.clone()).unwrap();
+
         let current = result.read_raw_current();
         assert_eq!(0x0060 as u16, current);
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_read_raw_shunt_voltage_fail() {
-        let mut result = initialize_ina::<I2C>();
-
-        let expectations = [I2cTransaction::write_read(
-            0x40,
-            vector1(0x01 as u8),
-            vector2(0x22 as u8, 0x60 as u8),
-        )
-        .with_error(MockError::Io(std::io::ErrorKind::Other))];
+        let expectations = [
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
+            I2cTransaction::write_read(0x40, vector1(0x01 as u8), vector2(0x22 as u8, 0x60 as u8))
+                .with_error(embedded_hal::i2c::ErrorKind::Other),
+        ];
         let mut i2c = I2cMock::new(&expectations);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let mut result = ina.initialize(i2c.clone()).unwrap();
+
         let shunt_voltage = result.read_raw_shunt_voltage();
         assert_eq!(0 as u16, shunt_voltage);
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_read_raw_shunt_voltage_ok() {
-        let mut result = initialize_ina::<I2C>();
-
-        let expectations = [I2cTransaction::write_read(
-            0x40,
-            vector1(0x01 as u8),
-            vector2(0x00 as u8, 0x60 as u8),
-        )];
+        let expectations = [
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
+            I2cTransaction::write_read(0x40, vector1(0x01 as u8), vector2(0x00 as u8, 0x60 as u8)),
+        ];
         let mut i2c = I2cMock::new(&expectations);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let mut result = ina.initialize(i2c.clone()).unwrap();
+
         let shunt_voltage = result.read_raw_shunt_voltage();
         assert_eq!(0x0060 as u16, shunt_voltage);
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_set_ina_calibration_value() {
-        let mut result = initialize_ina::<I2C>();
+        let expectations = [
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
+        ];
+        let mut i2c = I2cMock::new(&expectations);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let mut result = ina.initialize(i2c.clone()).unwrap();
         result.set_ina_calibration_value(4000);
         assert_eq!(4000, result.calibration);
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_read_voltage_ok() {
-        let mut result = initialize_ina::<I2C>();
-
-        let expectations = [I2cTransaction::write_read(
-            0x40,
-            vector1(0x02 as u8),
-            vector2(0x00 as u8, 0x60 as u8),
-        )];
+        let expectations = [
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
+            I2cTransaction::write_read(0x40, vector1(0x02 as u8), vector2(0x00 as u8, 0x60 as u8)),
+        ];
         let mut i2c = I2cMock::new(&expectations);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let mut result = ina.initialize(i2c.clone()).unwrap();
+
         let voltage = result.read_voltage();
         assert!(approx_eq!(f64, 0.12, voltage, ulps = 5));
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_read_current_ok() {
-        let mut result = initialize_ina::<I2C>();
-
-        let expectations = [I2cTransaction::write_read(
-            0x40,
-            vector1(0x04 as u8),
-            vector2(0x00 as u8, 0x60 as u8),
-        )];
+        let expectations = [
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
+            I2cTransaction::write_read(0x40, vector1(0x04 as u8), vector2(0x00 as u8, 0x60 as u8)),
+        ];
         let mut i2c = I2cMock::new(&expectations);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let mut result = ina.initialize(i2c.clone()).unwrap();
+
         let current = result.read_current();
         assert!(approx_eq!(f64, 0.096, current, ulps = 5));
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_read_power_ok() {
-        let mut result = initialize_ina::<I2C>();
-
-        let expectations = [I2cTransaction::write_read(
-            0x40,
-            vector1(0x03 as u8),
-            vector2(0x00 as u8, 0x60 as u8),
-        )];
+        let expectations = [
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
+            I2cTransaction::write_read(0x40, vector1(0x03 as u8), vector2(0x00 as u8, 0x60 as u8)),
+        ];
         let mut i2c = I2cMock::new(&expectations);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let mut result = ina.initialize(i2c.clone()).unwrap();
+
         let power = result.read_power();
         assert!(approx_eq!(f64, 2.4, power, ulps = 5));
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_read_shunt_voltage_ok() {
-        let mut result = initialize_ina::<I2C>();
-
-        let expectations = [I2cTransaction::write_read(
-            0x40,
-            vector1(0x01 as u8),
-            vector2(0x00 as u8, 0x60 as u8),
-        )];
+        let expectations = [
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
+            I2cTransaction::write_read(0x40, vector1(0x01 as u8), vector2(0x00 as u8, 0x60 as u8)),
+        ];
         let mut i2c = I2cMock::new(&expectations);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let mut result = ina.initialize(i2c.clone()).unwrap();
+
         let shunt_voltage = result.read_shunt_voltage();
         assert!(approx_eq!(f64, 0.00024, shunt_voltage, ulps = 5));
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_get_ina_masks_fail() {
-        let mut result = initialize_ina::<I2C>();
-
-        let expectations = [I2cTransaction::write_read(
-            0x40,
-            vector1(0x06 as u8),
-            vector2(0x22 as u8, 0x60 as u8),
-        )
-        .with_error(MockError::Io(std::io::ErrorKind::Other))];
+        let expectations = [
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
+            I2cTransaction::write_read(0x40, vector1(0x06 as u8), vector2(0x22 as u8, 0x60 as u8))
+                .with_error(embedded_hal::i2c::ErrorKind::Other),
+        ];
         let mut i2c = I2cMock::new(&expectations);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let mut result = ina.initialize(i2c.clone()).unwrap();
+
         let masks = result.get_ina_masks();
         assert_eq!(0 as u16, masks);
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_get_ina_masks_ok() {
-        let mut result = initialize_ina::<I2C>();
-
-        let expectations = [I2cTransaction::write_read(
-            0x40,
-            vector1(0x06 as u8),
-            vector2(0x22 as u8, 0x60 as u8),
-        )];
+        let expectations = [
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
+            I2cTransaction::write_read(0x40, vector1(0x06 as u8), vector2(0x22 as u8, 0x60 as u8)),
+        ];
         let mut i2c = I2cMock::new(&expectations);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let mut result = ina.initialize(i2c.clone()).unwrap();
+
         let masks = result.get_ina_masks();
         assert_eq!(0x2260 as u16, masks);
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_set_ina_masks() {
-        let mut result = initialize_ina::<I2C>();
+        let expectations = [
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
+        ];
+        let mut i2c = I2cMock::new(&expectations);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let mut result = ina.initialize(i2c.clone()).unwrap();
 
         result.set_ina_masks(MaskEnable::AlertPolarityBit);
         assert_eq!(0b0000_0000_0000_0010, result.mask_enable);
@@ -1230,11 +1443,22 @@ mod tests {
         assert_eq!(0b0000_0000_0000_0110, result.mask_enable);
         result.set_ina_masks(MaskEnable::ShuntUnderVoltage);
         assert_eq!(0b0100_0000_0000_0110, result.mask_enable);
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_erase_ina_mask() {
-        let mut result = initialize_ina::<I2C>();
+        let expectations = [
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
+        ];
+        let mut i2c = I2cMock::new(&expectations);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let mut result = ina.initialize(i2c.clone()).unwrap();
 
         result.set_ina_masks(MaskEnable::AlertPolarityBit);
         result.set_ina_masks(MaskEnable::MathOverflowFlag);
@@ -1242,11 +1466,21 @@ mod tests {
         assert_eq!(0b0100_0000_0000_0110, result.mask_enable);
         result.erase_ina_mask(MaskEnable::MathOverflowFlag);
         assert_eq!(0b0100_0000_0000_0010, result.mask_enable);
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_clear_ina_masks() {
-        let mut result = initialize_ina::<I2C>();
+        let expectations = [
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
+        ];
+        let mut i2c = I2cMock::new(&expectations);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let mut result = ina.initialize(i2c.clone()).unwrap();
 
         result.set_ina_masks(MaskEnable::AlertPolarityBit);
         result.set_ina_masks(MaskEnable::MathOverflowFlag);
@@ -1254,62 +1488,110 @@ mod tests {
         assert_eq!(0b0100_0000_0000_0110, result.mask_enable);
         result.clear_ina_masks();
         assert_eq!(0b0000_0000_0000_0000, result.mask_enable);
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_set_ina_alert() {
-        let mut result = initialize_ina::<I2C>();
+        let expectations = [
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
+        ];
+        let mut i2c = I2cMock::new(&expectations);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let mut result = ina.initialize(i2c.clone()).unwrap();
 
         result.set_ina_alert(1500);
         assert_eq!(1500, result.alert_limit);
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_clear_ina_alert() {
-        let mut result = initialize_ina::<I2C>();
+        let expectations = [
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
+        ];
+        let mut i2c = I2cMock::new(&expectations);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let mut result = ina.initialize(i2c.clone()).unwrap();
 
         result.set_ina_alert(1500);
         assert_eq!(1500, result.alert_limit);
         result.clear_ina_alert();
         assert_eq!(0, result.alert_limit);
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_get_ina_alert_fail() {
-        let mut result = initialize_ina::<I2C>();
-
-        let expectations = [I2cTransaction::write_read(
-            0x40,
-            vector1(0x07 as u8),
-            vector2(0x22 as u8, 0x60 as u8),
-        )
-        .with_error(MockError::Io(std::io::ErrorKind::Other))];
+        let expectations = [
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
+            I2cTransaction::write_read(0x40, vector1(0x07 as u8), vector2(0x22 as u8, 0x60 as u8))
+                .with_error(embedded_hal::i2c::ErrorKind::Other),
+        ];
         let mut i2c = I2cMock::new(&expectations);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let mut result = ina.initialize(i2c.clone()).unwrap();
+
         let alert = result.get_ina_alert();
         assert_eq!(0 as u16, alert);
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
     fn test_get_ina_alert_ok() {
-        let mut result = initialize_ina::<I2C>();
-
-        let expectations = [I2cTransaction::write_read(
-            0x40,
-            vector1(0x07 as u8),
-            vector2(0x10 as u8, 0x10 as u8),
-        )];
+        let expectations = [
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
+            I2cTransaction::write_read(0x40, vector1(0x07 as u8), vector2(0x10 as u8, 0x10 as u8)),
+        ];
         let mut i2c = I2cMock::new(&expectations);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let mut result = ina.initialize(i2c.clone()).unwrap();
+
         let alert = result.get_ina_alert();
         assert_eq!(0x1010 as u16, alert);
+
+        //finalize execution
+        i2c.done();
     }
 
     #[test]
-    fn test_set_ina_calibration<I2C>() {
-        let mut result = initialize_ina::<I2C>();
+    fn test_set_ina_calibration() {
+        let expectations = [
+            I2cTransaction::write_read(0x40, vector1(0xFF), vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0xFE), vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write_read(0x40, vector1(0), vector2(3, 4)),
+        ];
+        let mut i2c = I2cMock::new(&expectations);
+        let mut ina = Ina226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let mut result = ina.initialize(i2c.clone()).unwrap();
 
         let myrshut = 0.002; //Ohms
         let max_curr = 15.0; //Amps
         result.set_ina_calibration(myrshut, max_curr);
         assert_eq!(5592, result.calibration);
+
+        //finalize execution
+        i2c.done();
     }
 }

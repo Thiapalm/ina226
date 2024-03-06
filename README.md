@@ -38,13 +38,24 @@ Non Operational:
 
  If the device is not calibrated, it assumes a shunt resistor value of 2 mOhms and maximum current of 10 Amps
 
+# Version Revision
+
+0.1.0 - First Version
+0.2.0 - Implemented Compatibility with embedded_hal 1.0
+
 # Example
 
 To use the driver, you must have a concrete implementation of the
 [embedded-hal](https://crates.io/crates/embedded-hal) traits.  This example uses
 [stm32f4xx-hal](https://crates.io/crates/stm32f4xx-hal):
 
+If you need to search for INA address on the bus, or need to use it with other I2C devices, then you will need to use embedded_hal_bus implementation as below:
+
+
 ``` rust
+use core::cell::RefCell;
+use embedded_hal_bus::i2c;
+
     let mut i2c = dp.I2C1.i2c(
         (scl, sda),
         Mode::Standard {
@@ -52,9 +63,12 @@ To use the driver, you must have a concrete implementation of the
         },
         &clocks,
     );
-let mut ina_device = ina226::Ina226::new();
 
-    match ina_device.search_ina_address(&mut i2c) {
+    let i2c_ref_cell = RefCell::new(i2c);
+
+    let mut ina_device = ina226::Ina226::new(Some(i2c::RefCellDevice::new(&i2c_ref_cell)));
+
+    match ina_device.search_ina_address() {
         Ok(_) => {
             rprintln!(
                 "Found Address {:#02x}",
@@ -67,7 +81,7 @@ let mut ina_device = ina226::Ina226::new();
         }
     };
 
-    let mut ina_device = match ina_device.initialize(&mut i2c) {
+    let mut ina_device = match ina_device.initialize(i2c::RefCellDevice::new(&i2c_ref_cell)) {
         Ok(x) => {
             rprintln!("Found INA226!");
             x
@@ -77,22 +91,53 @@ let mut ina_device = ina226::Ina226::new();
             panic!();
         }
     };
+```
+If you dont need to search for its address or have other I2C devices on the bus, then just pass None to the new function and use i2c directly
 
+
+```rust
+    let mut i2c = dp.I2C1.i2c(
+        (scl, sda),
+        Mode::Standard {
+            frequency: 100.kHz(),
+        },
+        &clocks,
+    );
+
+    let mut ina_device = ina226::Ina226::new(None);
+
+    ina_device.set_address(0x40);
+
+    let mut ina_device = match ina_device.initialize(i2c) {
+        Ok(x) => {
+            rprintln!("Found INA226!");
+            x
+        }
+        Err(err) => {
+            rprintln!("Invalid device: {}", err);
+            panic!();
+        }
+    };
+```
+
+From now on you can configure and use the device normally
+
+```rust
     ina_device
         .set_ina_mode(InaMode::ShuntAndBusContinuous)
         .set_ina_average(InaAverage::_512)
         .set_ina_vbusct(InaVbusct::_1_1_ms)
         .set_ina_vscht(InaVshct::_1_1_ms)
-        .commit(&mut i2c);
+        .commit();
 
-    ina_device.set_ina_calibration_value(6000).commit(&mut i2c);
+    ina_device.set_ina_calibration_value(6000).commit();
 
-    rprintln!("Voltage: {:.2} V", ina_device.read_voltage(&mut i2c));
-    rprintln!("Current: {:.3} A", ina_device.read_current(&mut i2c));
-    rprintln!("Power: {:.3} W", ina_device.read_power(&mut i2c));
+    rprintln!("Voltage: {:.2} V", ina_device.read_voltage());
+    rprintln!("Current: {:.3} A", ina_device.read_current());
+    rprintln!("Power: {:.3} W", ina_device.read_power());
     rprintln!(
         "Shunt Voltage: {:.6} V",
-        ina_device.read_shunt_voltage(&mut i2c)
+        ina_device.read_shunt_voltage()
     );
 
 ```
