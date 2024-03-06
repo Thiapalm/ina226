@@ -234,6 +234,15 @@ pub fn convert_slave_address(a0: SlaveAddressing, a1: SlaveAddressing) -> u8 {
     }
 }
 
+impl<I2C, E, State> Default for Ina226<I2C, State>
+where
+    I2C: i2c::I2c<Error = E>,
+{
+    fn default() -> Self {
+        Self::new(None)
+    }
+}
+
 impl<I2C, E, State> Ina226<I2C, State>
 where
     I2C: i2c::I2c<Error = E>,
