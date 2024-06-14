@@ -1,9 +1,9 @@
 [package]
 name = "ina226-tp"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 author = ["Thiago Palmieri <palmieri@adastra.aleeas.com>"]
-keywords = ["analog", "driver", "i2c", "embedded-hal-driver"]
+keywords = ["analog", "driver", "i2c", "embedded-hal-driver", "async"]
 categories = ["embedded", "hardware-support", "no-std"]
 license = "MIT OR Apache-2.0"
 description = "Rust Driver for device INA226 High-Side or Low-Side Measurement, Bi-Direcional Current and Power Monitor"
@@ -15,8 +15,13 @@ repository = "https://github.com/Thiapalm/ina226"
 [dependencies]
 embedded-hal = "1.0"
 byteorder = { version = "1.4.3", default-features = false }
+embedded-hal-async = { version = "1.0.0", optional = true }
+maybe-async-cfg = "0.2.3"
 
 [dev-dependencies]
 pretty_assertions = "1"
 embedded-hal-mock = "0.10.0"
 float-cmp = "0.9.0"
+
+[features]
+async = ["dep:embedded-hal-async"]
