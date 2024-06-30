@@ -7,7 +7,7 @@
 //!
 //! This crate was made for and tested on INA226 from Texas Instruments, it is based on I2C from embedded-hal crate.
 //! The implementation of this crate is based on #![no_std] but with some minor adjustments it can be used on std environments.
-//! This crate is async compatible.
+//! This crate is async compatible (must enable 'async' feature).
 //!  
 //! This driver allows you to:
 //! - Manually configure INA226 address
@@ -200,6 +200,7 @@ pub enum Error {
 }
 
 impl Display for Error {
+    #[inline]
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Error::InvalidDie => write!(f, "Invalid Die Number"),
@@ -215,6 +216,7 @@ impl Display for Error {
 /**
  * Returns communication error
  */
+#[inline]
 fn i2c_comm_error<E>(_: E) -> Error {
     Error::CommunicationErr
 }
@@ -222,6 +224,7 @@ fn i2c_comm_error<E>(_: E) -> Error {
 /**
  * Function that converts physical pin address connection to respective hexadecimal value
  */
+#[inline]
 pub fn convert_slave_address(a0: SlaveAddressing, a1: SlaveAddressing) -> u8 {
     match (a0, a1) {
         (SlaveAddressing::Gnd, SlaveAddressing::Gnd) => 0x40,
@@ -259,6 +262,7 @@ where
     /**
      * Method used to create a new ina226 instance
      */
+    #[inline]
     pub fn new(i2c: Option<I2C>) -> Self {
         INA226 {
             address: None,
@@ -289,6 +293,7 @@ where
     /**
      * Private method used to read the ina226 chosen register
      */
+    #[inline]
     async fn read_register(&mut self, register: Register) -> Result<[u8; 2], Error> {
         let mut rx_buffer: [u8; 2] = [0; 2];
         let address = self.address.unwrap();
@@ -312,6 +317,7 @@ where
     /**
      * Private method used to write to ina226 chosen register
      */
+    #[inline]
     async fn write_register(&mut self, register: Register, buf: &mut [u8; 2]) {
         let address = self.address.unwrap();
         let _ = self
@@ -321,20 +327,12 @@ where
             .write(address, &[register as u8, buf[1], buf[0]])
             .await;
     }
-}
 
-#[maybe_async_cfg::maybe(
-    sync(cfg(not(feature = "async")), self = "INA226",),
-    async(feature = "async", keep_self)
-)]
-impl<I2C, E> INA226<I2C, NonOperational>
-where
-    I2C: I2c<Error = E>,
-{
     /**
      * This private method is used to verify if reading/writing to the hardware is working and also check if it is the correct IC.
      * This method requires that the address is previously set.
      */
+    #[inline]
     async fn verify_hardware(&mut self) -> Result<(), Error> {
         match self.address {
             None => Err(Error::MissingAddress),
@@ -367,19 +365,25 @@ where
             }
         }
     }
+}
 
+#[maybe_async_cfg::maybe(
+    sync(cfg(not(feature = "async")), self = "INA226",),
+    async(feature = "async", keep_self)
+)]
+impl<I2C, E> INA226<I2C, NonOperational>
+where
+    I2C: I2c<Error = E>,
+{
     /**
      * This method will initialize the driver, leaving it ready for operation. It requires a valid address
      */
+    #[inline]
     pub async fn initialize(&mut self, i2c: I2C) -> Result<INA226<I2C, Operational>, Error> {
         match self.address {
             None => Err(Error::MissingAddress),
             Some(_) => {
-                self.verify_hardware().await?;
-                let config = self.read_register(Register::Configuration).await?;
-                self.configuration = BigEndian::read_u16(&config);
-
-                Ok(INA226 {
+                let mut ina = INA226 {
                     address: self.address,
                     i2c: Some(i2c),
                     configuration: self.configuration,
@@ -393,7 +397,12 @@ where
                     manufacturer: self.manufacturer,
                     die_id: self.die_id,
                     state: core::marker::PhantomData::<Operational>,
-                })
+                };
+
+                ina.verify_hardware().await?;
+                let config = ina.read_register(Register::Configuration).await?;
+                ina.configuration = BigEndian::read_u16(&config);
+                Ok(ina)
             }
         }
     }
@@ -402,6 +411,7 @@ where
      * This method can be used to manually set the ina226 address. It must be used if there are other devices or ina226 containing
      * address between 0x40 and 0x4f attached to the i2c bus
      */
+    #[inline]
     pub fn set_ina_address(&mut self, address: u8) -> &mut Self {
         self.address = Some(address);
         self
@@ -412,6 +422,7 @@ where
      * containing address between 0x40 and 0x4f. If found, this will automatically set the address, thus avoiding the need to use
      * set_ina_address method
      */
+    #[inline]
     pub async fn search_ina_address(&mut self) -> Result<(), Error> {
         let array = [
             SlaveAddressing::Gnd,
@@ -438,6 +449,7 @@ where
     /**
      * This method returns the ina226 address currently being used
      */
+    #[inline]
     pub fn get_ina_address(&self) -> Option<u8> {
         self.address
     }
@@ -454,6 +466,7 @@ where
     /**
      * Method used to return the currently mode set on ina226 device (see ina226 datasheet <https://www.ti.com/product/INA226>)
      */
+    #[inline]
     pub fn get_ina_mode(&self) -> Option<InaMode> {
         match self.configuration & 0x0007 {
             0x00 => Some(InaMode::PowerDown),
@@ -471,6 +484,7 @@ where
     /**
      * Method used to set the mode of operation (see ina226 datasheet <https://www.ti.com/product/INA226>), it requires a commit()
      */
+    #[inline]
     pub fn set_ina_mode(&mut self, value: InaMode) -> &mut Self {
         self.configuration &= 0xFFF8;
         self.configuration |= value as u16;
@@ -480,6 +494,7 @@ where
     /**
      * Method used to set the voltage conversion time (see ina226 datasheet <https://www.ti.com/product/INA226>), it requires a commit()
      */
+    #[inline]
     pub fn set_ina_vbusct(&mut self, value: InaVbusct) -> &mut Self {
         let value = value as u16;
         self.configuration &= 0xFE3F;
@@ -490,6 +505,7 @@ where
     /**
      * Method used to get the currently set voltage conversion time (see ina226 datasheet <https://www.ti.com/product/INA226>)
      */
+    #[inline]
     pub fn get_ina_vbusct(&self) -> Option<InaVbusct> {
         let mut result = self.configuration >> 6;
         result &= 0x07;
@@ -509,6 +525,7 @@ where
     /**
      * Method used to set the shunt voltage conversion time (see ina226 datasheet <https://www.ti.com/product/INA226>), it requires a commit()
      */
+    #[inline]
     pub fn set_ina_vscht(&mut self, value: InaVshct) -> &mut Self {
         let value = value as u16;
         self.configuration &= 0xFFC7;
@@ -519,6 +536,7 @@ where
     /**
      * Method used to get the currently set shunt voltage conversion time (see ina226 datasheet <https://www.ti.com/product/INA226>)
      */
+    #[inline]
     pub fn get_ina_vscht(&self) -> Option<InaVshct> {
         let mut result = self.configuration >> 3;
         result &= 0x07;
@@ -538,6 +556,7 @@ where
     /**
      * Method used to get the currently set averaging (see ina226 datasheet <https://www.ti.com/product/INA226>)
      */
+    #[inline]
     pub fn get_ina_average(&self) -> Option<InaAverage> {
         let mut result = self.configuration >> 9;
         result &= 0x07;
@@ -557,6 +576,7 @@ where
     /**
      * Method used to set the averaging (see ina226 datasheet <https://www.ti.com/product/INA226>), it requires a commit()
      */
+    #[inline]
     pub fn set_ina_average(&mut self, value: InaAverage) -> &mut Self {
         let value = value as u16;
         self.configuration &= 0xF1FF;
@@ -568,6 +588,7 @@ where
      * Method used to reset the chip. It generates a system reset that is the same as power-on reset. Resets all registers to default values.
      * This method requires a commit()
      */
+    #[inline]
     pub fn ina_reset(&mut self) -> &mut Self {
         self.configuration |= 1 << 15;
         self
@@ -577,6 +598,7 @@ where
      * Method used to persist all configuration on the ina226 hardware registers. Any previous configuration that
      * is not followed by a commit() is not persisted on the hardware register and thus not valid.
      */
+    #[inline]
     pub async fn commit(&mut self) {
         self.write_register(
             Register::Configuration,
@@ -594,6 +616,7 @@ where
     /**
      * Private method used to read the raw voltage from ina226
      */
+    #[inline]
     async fn read_raw_voltage(&mut self) -> u16 {
         let result: Result<[u8; 2], Error> = self.read_register(Register::BusVoltage).await;
         self.bus_voltage = match result {
@@ -606,6 +629,7 @@ where
     /**
      * Private method used to read the raw power from ina226
      */
+    #[inline]
     async fn read_raw_power(&mut self) -> u16 {
         let result: Result<[u8; 2], Error> = self.read_register(Register::Power).await;
         self.power = match result {
@@ -618,6 +642,7 @@ where
     /**
      * Private method used to read the raw current from ina226
      */
+    #[inline]
     async fn read_raw_current(&mut self) -> u16 {
         let result: Result<[u8; 2], Error> = self.read_register(Register::Current).await;
         self.current = match result {
@@ -630,6 +655,7 @@ where
     /**
      * Private method used to read the raw shunt voltage from ina226
      */
+    #[inline]
     async fn read_raw_shunt_voltage(&mut self) -> u16 {
         let result: Result<[u8; 2], Error> = self.read_register(Register::ShuntVoltage).await;
         self.shunt_voltage = match result {
@@ -644,6 +670,7 @@ where
      * Please, See the datasheet <https://www.ti.com/product/INA226>, chapter 7.5 for further information.
      * This method requires a commit()
      */
+    #[inline]
     pub fn set_ina_calibration(&mut self, rshunt: f64, expect_max_curr: f64) -> &mut Self {
         let cur_lsb = expect_max_curr / (1 << 15) as f64;
         let cal = (INTERNAL_SCALING / (cur_lsb * rshunt)) as u16;
@@ -655,6 +682,7 @@ where
     /**
      * Method used to manually set the calibration value (see ina226 datasheet <https://www.ti.com/product/INA226>), it requires a commit()
      */
+    #[inline]
     pub fn set_ina_calibration_value(&mut self, value: u16) -> &mut Self {
         self.calibration = value;
         self
@@ -664,6 +692,7 @@ where
      * This method is used to read the voltage, it multiplies the raw voltage by the IC resolution (in mV)
      * returning the value in volts
      */
+    #[inline]
     pub async fn read_voltage(&mut self) -> f64 {
         self.read_raw_voltage().await as f64 * VOLTAGE_LSB
     }
@@ -672,6 +701,7 @@ where
      * This method is used to read the current, it multiplies the raw current by the IC resolution (in mA)
      * returning the value in amps
      */
+    #[inline]
     pub async fn read_current(&mut self) -> f64 {
         self.read_raw_current().await as f64 * CURRENT_LSB
     }
@@ -680,6 +710,7 @@ where
      * This method is used to read the power, it multiplies the raw power by the IC resolution (in mW)
      * returning the value in watts
      */
+    #[inline]
     pub async fn read_power(&mut self) -> f64 {
         self.read_raw_power().await as f64 * POWER_LSB
     }
@@ -688,6 +719,7 @@ where
      * This method is used to read the shunt voltage, it multiplies the raw shunt voltage by the IC resolution (in uV)
      * returning the value in volts
      */
+    #[inline]
     pub async fn read_shunt_voltage(&mut self) -> f64 {
         self.read_raw_shunt_voltage().await as f64 * SHUNT_LSB
     }
@@ -695,6 +727,7 @@ where
     /**
      * This method is used to read the masks register (see ina226 datasheet <https://www.ti.com/product/INA226>).
      */
+    #[inline]
     pub async fn get_ina_masks(&mut self) -> u16 {
         let result: Result<[u8; 2], Error> = self.read_register(Register::MaskEnable).await;
         self.mask_enable = match result {
@@ -707,6 +740,7 @@ where
     /**
      * This method is used to erase a given value on the masks register (see ina226 datasheet <https://www.ti.com/product/INA226>), it requires a commit()
      */
+    #[inline]
     pub fn erase_ina_mask(&mut self, mask: MaskEnable) -> &mut Self {
         let mask = mask as u16;
         self.mask_enable &= !mask;
@@ -716,6 +750,7 @@ where
     /**
      * This method is used to set masks register (see ina226 datasheet <https://www.ti.com/product/INA226>), it requires a commit()
      */
+    #[inline]
     pub fn set_ina_masks(&mut self, mask: MaskEnable) -> &mut Self {
         let mask = mask as u16;
         self.mask_enable |= mask;
@@ -725,6 +760,7 @@ where
     /**
      * This method is used to clear the masks register (see ina226 datasheet <https://www.ti.com/product/INA226>), it requires a commit()
      */
+    #[inline]
     pub fn clear_ina_masks(&mut self) -> &mut Self {
         self.mask_enable = 0;
         self
@@ -732,6 +768,7 @@ where
     /**
      * This method is used to set alert value on the alert register (see ina226 datasheet <https://www.ti.com/product/INA226>), it requires a commit()
      */
+    #[inline]
     pub fn set_ina_alert(&mut self, value: u16) -> &mut Self {
         self.alert_limit = value;
         self
@@ -739,6 +776,7 @@ where
     /**
      * This method clears the alert register, it requires commit()
      */
+    #[inline]
     pub fn clear_ina_alert(&mut self) -> &mut Self {
         self.alert_limit = 0;
         self
@@ -747,6 +785,7 @@ where
     /**
      * This method reads the Alert register and returns the result
      */
+    #[inline]
     pub async fn get_ina_alert(&mut self) -> u16 {
         let result: Result<[u8; 2], Error> = self.read_register(Register::Alert).await;
         self.alert_limit = match result {
@@ -804,7 +843,8 @@ mod tests {
     fn test_verify_hardware_missing_address() {
         let expectations = [];
         let mut i2c = I2cMock::new(&expectations);
-        let mut ina = INA226::new(Some(i2c.clone()));
+        let mut ina: INA226<embedded_hal_mock::common::Generic<I2cTransaction>, NonOperational> =
+            INA226::new(Some(i2c.clone()));
         let result = ina.verify_hardware();
         assert_eq!(Error::MissingAddress, result.unwrap_err());
 
