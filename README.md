@@ -42,6 +42,11 @@ Non Operational:
 
 0.1.0 - First Version
 0.2.0 - Implemented Compatibility with embedded_hal 1.0
+0.3.0 - Implemented async Compatibility and fixed a bug on initialize method not working properly if a search address was not performed before.
+
+# Features 
+
+features = ["async"] - enables support for async Rust
 
 # Example
 
