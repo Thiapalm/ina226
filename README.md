@@ -2,6 +2,13 @@
 
 > I²C API for INA226 High-Side or Low-Side Measurement, Bi-Direcional Current and Power Monitor
 
+<p align=center>
+  <a href="https://crates.io/crates/ina226-tp"><img src="https://img.shields.io/badge/crates.io-v0.4.0-red"></a>
+ <a href="https://docs.rs/ina226-tp/0.4.0/ina226_tp/"><img src="https://img.shields.io/badge/docs.rs-v0.4.0-orange"></a>
+ <a href="http://www.apache.org/licenses/LICENSE-2.0"><img src="https://img.shields.io/badge/License-ApacheV2-green"></a>
+ <a href="http://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-green"></a>
+</p>
+
 # [ina226 Datasheet](https://www.ti.com/product/INA226)
 
 # Description
@@ -43,10 +50,12 @@ Non Operational:
 0.1.0 - First Version
 0.2.0 - Implemented Compatibility with embedded_hal 1.0
 0.3.0 - Implemented async Compatibility and fixed a bug on initialize method not working properly if a search address was not performed before.
+0.4.0 - Implemnted "no_float" feature to make the code compatible with older and less powerfull microcontrollers. Changed the read raw functions to public so theey can be used freely.
 
 # Features 
 
-features = ["async"] - enables support for async Rust
+["async"] - enables support for async Rust
+["no_float"] - removes float usage from the code
 
 # Example
 
@@ -145,6 +154,27 @@ From now on you can configure and use the device normally
         ina_device.read_shunt_voltage()
     );
 
+```
+
+If using the no_float feature replace by corresponding read functions
+
+```rust
+    ina_device
+        .set_ina_mode(InaMode::ShuntAndBusContinuous)
+        .set_ina_average(InaAverage::_512)
+        .set_ina_vbusct(InaVbusct::_1_1_ms)
+        .set_ina_vscht(InaVshct::_1_1_ms)
+        .commit();
+
+    ina_device.set_ina_calibration_value(6000).commit();
+
+    rprintln!("Voltage: {:.2} mV", ina_device.read_voltage_millis());
+    rprintln!("Current: {:.3} mA", ina_device.read_current_millis());
+    rprintln!("Power: {:.3} mW", ina_device.read_power_millis());
+    rprintln!(
+        "Shunt Voltage: {:.6} nV",
+        ina_device.read_shunt_voltage_nanos()
+    );
 ```
 
 # License
