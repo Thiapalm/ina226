@@ -51,12 +51,24 @@ use embedded_hal::i2c::I2c;
 #[cfg(feature = "async")]
 use embedded_hal_async::i2c::I2c;
 
+#[cfg(not(feature = "no_float"))]
 const INTERNAL_SCALING: f64 = 0.00512;
-
+#[cfg(not(feature = "no_float"))]
 const SHUNT_LSB: f64 = 0.0000025; // in Volts (2.5 uV)
+#[cfg(feature = "no_float")]
+const SHUNT_LSB_NV: u32 = 2500; // in Volts (2.5 uV)
+#[cfg(not(feature = "no_float"))]
 const VOLTAGE_LSB: f64 = 0.00125; // in Volts (1.25 mV)
+#[cfg(feature = "no_float")]
+const VOLTAGE_LSB_UV: u32 = 1250; // in Volts (1.25 mV)
+#[cfg(not(feature = "no_float"))]
 const CURRENT_LSB: f64 = 0.001; // in Amps (1 mA)
+#[cfg(feature = "no_float")]
+const CURRENT_LSB_UA: u32 = 1000; // in Amps (1 mA)
+#[cfg(not(feature = "no_float"))]
 const POWER_LSB: f64 = 0.025; // in Watts (25 mW)
+#[cfg(feature = "no_float")]
+const POWER_LSB_UW: u32 = 25000; // in Watts (25 mW)
 
 /// Enum used for ina226 addressing based on pin connection
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -617,7 +629,7 @@ where
      * Private method used to read the raw voltage from ina226
      */
     #[inline]
-    async fn read_raw_voltage(&mut self) -> u16 {
+    pub async fn read_raw_voltage(&mut self) -> u16 {
         let result: Result<[u8; 2], Error> = self.read_register(Register::BusVoltage).await;
         self.bus_voltage = match result {
             Ok(value) => BigEndian::read_u16(&value),
@@ -630,7 +642,7 @@ where
      * Private method used to read the raw power from ina226
      */
     #[inline]
-    async fn read_raw_power(&mut self) -> u16 {
+    pub async fn read_raw_power(&mut self) -> u16 {
         let result: Result<[u8; 2], Error> = self.read_register(Register::Power).await;
         self.power = match result {
             Ok(value) => BigEndian::read_u16(&value),
@@ -643,7 +655,7 @@ where
      * Private method used to read the raw current from ina226
      */
     #[inline]
-    async fn read_raw_current(&mut self) -> u16 {
+    pub async fn read_raw_current(&mut self) -> u16 {
         let result: Result<[u8; 2], Error> = self.read_register(Register::Current).await;
         self.current = match result {
             Ok(value) => BigEndian::read_u16(&value),
@@ -656,7 +668,7 @@ where
      * Private method used to read the raw shunt voltage from ina226
      */
     #[inline]
-    async fn read_raw_shunt_voltage(&mut self) -> u16 {
+    pub async fn read_raw_shunt_voltage(&mut self) -> u16 {
         let result: Result<[u8; 2], Error> = self.read_register(Register::ShuntVoltage).await;
         self.shunt_voltage = match result {
             Ok(value) => BigEndian::read_u16(&value),
@@ -670,6 +682,7 @@ where
      * Please, See the datasheet <https://www.ti.com/product/INA226>, chapter 7.5 for further information.
      * This method requires a commit()
      */
+    #[cfg(not(feature = "no_float"))]
     #[inline]
     pub fn set_ina_calibration(&mut self, rshunt: f64, expect_max_curr: f64) -> &mut Self {
         let cur_lsb = expect_max_curr / (1 << 15) as f64;
@@ -678,7 +691,6 @@ where
         self.calibration = cal;
         self
     }
-
     /**
      * Method used to manually set the calibration value (see ina226 datasheet <https://www.ti.com/product/INA226>), it requires a commit()
      */
@@ -692,36 +704,79 @@ where
      * This method is used to read the voltage, it multiplies the raw voltage by the IC resolution (in mV)
      * returning the value in volts
      */
+    #[cfg(not(feature = "no_float"))]
     #[inline]
     pub async fn read_voltage(&mut self) -> f64 {
         self.read_raw_voltage().await as f64 * VOLTAGE_LSB
     }
 
     /**
+     * This method is used to read the voltage, it multiplies the raw voltage by the IC resolution (in mV)
+     * returning the value in millivolts (lower resolution)
+     */
+    #[cfg(feature = "no_float")]
+    #[inline]
+    pub async fn read_voltage_millis(&mut self) -> u32 {
+        (self.read_raw_voltage().await as u32 * VOLTAGE_LSB_UV) / 1000
+    }
+    /**
      * This method is used to read the current, it multiplies the raw current by the IC resolution (in mA)
      * returning the value in amps
      */
+    #[cfg(not(feature = "no_float"))]
     #[inline]
     pub async fn read_current(&mut self) -> f64 {
         self.read_raw_current().await as f64 * CURRENT_LSB
     }
 
     /**
+     * This method is used to read the current, it multiplies the raw current by the IC resolution (in mA)
+     * returning the value in milliamps (lower resolution)
+     */
+    #[cfg(feature = "no_float")]
+    #[inline]
+    pub async fn read_current_millis(&mut self) -> u32 {
+        (self.read_raw_current().await as u32 * CURRENT_LSB_UA) / 1000
+    }
+
+    /**
      * This method is used to read the power, it multiplies the raw power by the IC resolution (in mW)
      * returning the value in watts
      */
+    #[cfg(not(feature = "no_float"))]
     #[inline]
     pub async fn read_power(&mut self) -> f64 {
         self.read_raw_power().await as f64 * POWER_LSB
     }
 
     /**
+     * This method is used to read the power, it multiplies the raw power by the IC resolution (in mW)
+     * returning the value in milliwatts
+     */
+    #[cfg(feature = "no_float")]
+    #[inline]
+    pub async fn read_power_millis(&mut self) -> u32 {
+        (self.read_raw_power().await as u32 * POWER_LSB_UW) / 1000
+    }
+
+    /**
      * This method is used to read the shunt voltage, it multiplies the raw shunt voltage by the IC resolution (in uV)
      * returning the value in volts
      */
+    #[cfg(not(feature = "no_float"))]
     #[inline]
     pub async fn read_shunt_voltage(&mut self) -> f64 {
         self.read_raw_shunt_voltage().await as f64 * SHUNT_LSB
+    }
+
+    /**
+     * This method is used to read the shunt voltage, it multiplies the raw shunt voltage by the IC resolution (in uV)
+     * returning the value in nanovolts
+     */
+    #[cfg(feature = "no_float")]
+    #[inline]
+    pub async fn read_shunt_voltage_nanos(&mut self) -> u32 {
+        (self.read_raw_shunt_voltage().await as u32 * SHUNT_LSB_NV) / 1000
     }
 
     /**
@@ -803,6 +858,7 @@ mod tests {
     use pretty_assertions::assert_eq;
     extern crate embedded_hal_mock;
     use embedded_hal_mock::eh1::i2c::{Mock as I2cMock, Transaction as I2cTransaction};
+    #[cfg(not(feature = "no_float"))]
     use float_cmp::approx_eq;
 
     use tests::std::vec::Vec;
@@ -1451,6 +1507,7 @@ mod tests {
         i2c.done();
     }
 
+    #[cfg(not(feature = "no_float"))]
     #[test]
     fn test_read_voltage_ok() {
         let expectations = [
@@ -1475,6 +1532,32 @@ mod tests {
         i2c.done();
     }
 
+    #[cfg(feature = "no_float")]
+    #[test]
+    fn test_read_voltage_millis_ok() {
+        let expectations = [
+            I2cTransaction::write(0x40, vector1(0xFF)),
+            I2cTransaction::read(0x40, vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write(0x40, vector1(0xFE)),
+            I2cTransaction::read(0x40, vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write(0x40, vector1(0)),
+            I2cTransaction::read(0x40, vector2(3, 4)),
+            I2cTransaction::write(0x40, vector1(0x02 as u8)),
+            I2cTransaction::read(0x40, vector2(0x00 as u8, 0x60 as u8)),
+        ];
+        let mut i2c = I2cMock::new(&expectations);
+        let mut ina = INA226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let mut result = ina.initialize(i2c.clone()).unwrap();
+
+        let voltage = result.read_voltage_millis();
+        assert_eq!(120, voltage);
+
+        //finalize execution
+        i2c.done();
+    }
+
+    #[cfg(not(feature = "no_float"))]
     #[test]
     fn test_read_current_ok() {
         let expectations = [
@@ -1499,6 +1582,32 @@ mod tests {
         i2c.done();
     }
 
+    #[cfg(feature = "no_float")]
+    #[test]
+    fn test_read_current_millis_ok() {
+        let expectations = [
+            I2cTransaction::write(0x40, vector1(0xFF)),
+            I2cTransaction::read(0x40, vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write(0x40, vector1(0xFE)),
+            I2cTransaction::read(0x40, vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write(0x40, vector1(0)),
+            I2cTransaction::read(0x40, vector2(3, 4)),
+            I2cTransaction::write(0x40, vector1(0x04 as u8)),
+            I2cTransaction::read(0x40, vector2(0x00 as u8, 0x60 as u8)),
+        ];
+        let mut i2c = I2cMock::new(&expectations);
+        let mut ina = INA226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let mut result = ina.initialize(i2c.clone()).unwrap();
+
+        let current = result.read_current_millis();
+        assert_eq!(96, current);
+
+        //finalize execution
+        i2c.done();
+    }
+
+    #[cfg(not(feature = "no_float"))]
     #[test]
     fn test_read_power_ok() {
         let expectations = [
@@ -1523,6 +1632,32 @@ mod tests {
         i2c.done();
     }
 
+    #[cfg(feature = "no_float")]
+    #[test]
+    fn test_read_power_millis_ok() {
+        let expectations = [
+            I2cTransaction::write(0x40, vector1(0xFF)),
+            I2cTransaction::read(0x40, vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write(0x40, vector1(0xFE)),
+            I2cTransaction::read(0x40, vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write(0x40, vector1(0)),
+            I2cTransaction::read(0x40, vector2(3, 4)),
+            I2cTransaction::write(0x40, vector1(0x03 as u8)),
+            I2cTransaction::read(0x40, vector2(0x00 as u8, 0x60 as u8)),
+        ];
+        let mut i2c = I2cMock::new(&expectations);
+        let mut ina = INA226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let mut result = ina.initialize(i2c.clone()).unwrap();
+
+        let power = result.read_power_millis();
+        assert_eq!(2400, power);
+
+        //finalize execution
+        i2c.done();
+    }
+
+    #[cfg(not(feature = "no_float"))]
     #[test]
     fn test_read_shunt_voltage_ok() {
         let expectations = [
@@ -1542,6 +1677,31 @@ mod tests {
 
         let shunt_voltage = result.read_shunt_voltage();
         assert!(approx_eq!(f64, 0.00024, shunt_voltage, ulps = 5));
+
+        //finalize execution
+        i2c.done();
+    }
+
+    #[cfg(feature = "no_float")]
+    #[test]
+    fn test_read_shunt_voltage_nanos_ok() {
+        let expectations = [
+            I2cTransaction::write(0x40, vector1(0xFF)),
+            I2cTransaction::read(0x40, vector2(0x22 as u8, 0x60 as u8)),
+            I2cTransaction::write(0x40, vector1(0xFE)),
+            I2cTransaction::read(0x40, vector2(0x54 as u8, 0x49 as u8)),
+            I2cTransaction::write(0x40, vector1(0)),
+            I2cTransaction::read(0x40, vector2(3, 4)),
+            I2cTransaction::write(0x40, vector1(0x01 as u8)),
+            I2cTransaction::read(0x40, vector2(0x00 as u8, 0x60 as u8)),
+        ];
+        let mut i2c = I2cMock::new(&expectations);
+        let mut ina = INA226::new(Some(i2c.clone()));
+        ina.set_ina_address(0x40 as u8);
+        let mut result = ina.initialize(i2c.clone()).unwrap();
+
+        let shunt_voltage = result.read_shunt_voltage_nanos();
+        assert_eq!(240, shunt_voltage);
 
         //finalize execution
         i2c.done();
@@ -1768,6 +1928,7 @@ mod tests {
         i2c.done();
     }
 
+    #[cfg(not(feature = "no_float"))]
     #[test]
     fn test_set_ina_calibration() {
         let expectations = [
