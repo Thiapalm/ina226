@@ -21,9 +21,10 @@ jobs:
       - name: Extract version from Cargo.toml
         id: get_version
         run: |
-          VERSION=$(awk -F '"' '/^\[package\]/,/^\[.*\]/ { if ($1 ~ /^version = /) print $2 }' Cargo.toml | head -n 1)
+          VERSION=$(sed -n '/^\[package\]/,/^\[/ s/^version *= *"\(.*\)"/\1/p' Cargo.toml | head -n 1)
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Extracted Version: $VERSION"
 
       - name: Check if tag exists
         id: check_tag
