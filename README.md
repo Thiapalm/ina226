@@ -3,8 +3,8 @@
 > I²C API for INA226 High-Side or Low-Side Measurement, Bi-Direcional Current and Power Monitor
 
 <p align=center>
-  <a href="https://crates.io/crates/ina226-tp"><img src="https://img.shields.io/badge/crates.io-v0.4.0-red"></a>
- <a href="https://docs.rs/ina226-tp/0.4.0/ina226_tp/"><img src="https://img.shields.io/badge/docs.rs-v0.4.0-orange"></a>
+  <a href="https://crates.io/crates/ina226-tp"><img src="https://img.shields.io/badge/crates.io-v0.4.1-red"></a>
+ <a href="https://docs.rs/ina226-tp/0.4.1/ina226_tp/"><img src="https://img.shields.io/badge/docs.rs-v0.4.1-orange"></a>
  <a href="http://www.apache.org/licenses/LICENSE-2.0"><img src="https://img.shields.io/badge/License-ApacheV2-green"></a>
  <a href="http://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-green"></a>
 </p>
@@ -51,6 +51,7 @@ Non Operational:
 0.2.0 - Implemented Compatibility with embedded_hal 1.0
 0.3.0 - Implemented async Compatibility and fixed a bug on initialize method not working properly if a search address was not performed before.
 0.4.0 - Implemnted "no_float" feature to make the code compatible with older and less powerfull microcontrollers. Changed the read raw functions to public so theey can be used freely.
+0.4.1 - Fixed read_current() and read_power() methods ignoring custom calibration and added set_current_lsb/set_current_lsb_nanos for "no_float" feature users. Improved unit tests for each feature.
 
 # Features 
 

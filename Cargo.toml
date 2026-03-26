@@ -1,6 +1,6 @@
 [package]
 name = "ina226-tp"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2021"
 author = ["Thiago Palmieri <palmieri@adastra.aleeas.com>"]
 keywords = ["analog", "driver", "i2c", "embedded-hal-driver", "async"]
@@ -23,6 +23,7 @@ maybe-async-cfg = "0.2.5"
 pretty_assertions = "1.4.1"
 embedded-hal-mock = "0.11.1"
 float-cmp = "0.10.0"
+futures = "0.3.30"
 
 [features]
 async = ["dep:embedded-hal-async"]
